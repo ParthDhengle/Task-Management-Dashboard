@@ -54,9 +54,17 @@ function App() {
   }, [filteredAndSortedTasks]);
 
 const handleDragEnd = (result) => {
+  console.log('Drag end called', result);
   const { destination, source, draggableId } = result;
-  if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
-
+  if (!destination) {
+    console.log('No destination');
+    return;
+  }
+  if (destination.droppableId === source.droppableId && destination.index === source.index) {
+    console.log('Same position');
+    return;
+  }
+  console.log('Moving task', draggableId, 'from', source.droppableId, 'to', destination.droppableId);
   setTasks(prevTasks => {
     const newTasks = [...prevTasks];
     const taskIndex = newTasks.findIndex(task => task.id === draggableId);
