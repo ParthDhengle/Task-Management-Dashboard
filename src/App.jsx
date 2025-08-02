@@ -14,66 +14,93 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [sortBy, setSortBy] = useState('title');
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Filter and sort tasks
-  const filteredAndSortedTasks = useMemo(() => {
-    let filtered = tasks.filter(task => {
+  // Filter tasks (no sorting here)
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            task.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesPriority = priorityFilter === 'all' || task.priority === priorityFilter;
       return matchesSearch && matchesPriority;
     });
+  }, [tasks, searchTerm, priorityFilter]);
 
-    // Sort tasks
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'title':
-          return a.title.localeCompare(b.title);
-        case 'priority':
-          const priorityOrder = { high: 3, medium: 2, low: 1 };
-          return priorityOrder[b.priority] - priorityOrder[a.priority];
-        case 'status':
-          return a.status.localeCompare(b.status);
-        case 'date':
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        default:
-          return 0;
-      }
-    });
-
-    return filtered;
-  }, [tasks, searchTerm, priorityFilter, sortBy]);
-
-  // Group tasks by status
+  // Group and sort tasks by status
   const tasksByStatus = useMemo(() => {
-    return {
-      todo: filteredAndSortedTasks.filter(task => task.status === 'todo'),
-      'in-progress': filteredAndSortedTasks.filter(task => task.status === 'in-progress'),
-      done: filteredAndSortedTasks.filter(task => task.status === 'done')
+    const allTasks = {
+      todo: filteredTasks.filter(task => task.status === 'todo'),
+      'in-progress': filteredTasks.filter(task => task.status === 'in-progress'),
+      done: filteredTasks.filter(task => task.status === 'done')
     };
-  }, [filteredAndSortedTasks]);
 
-const handleDragEnd = (result) => {
-  console.log('Drag end called', result);
-  const { destination, source, draggableId } = result;
-  if (!destination) {
-    console.log('No destination');
-    return;
-  }
-  if (destination.droppableId === source.droppableId && destination.index === source.index) {
-    console.log('Same position');
-    return;
-  }
-  console.log('Moving task', draggableId, 'from', source.droppableId, 'to', destination.droppableId);
-  setTasks(prevTasks => {
-    const newTasks = [...prevTasks];
-    const taskIndex = newTasks.findIndex(task => task.id === draggableId);
-    if (taskIndex !== -1) {
-      newTasks[taskIndex].status = destination.droppableId;
+    // Sort function for each column
+    const sortTasks = (taskList) => {
+      // Skip sorting during drag to maintain order
+      if (isDragging) return taskList;
+      return taskList.sort((a, b) => {
+        switch (sortBy) {
+          case 'title':
+            return a.title.localeCompare(b.title);
+          case 'priority':
+            const priorityOrder = { high: 3, medium: 2, low: 1 };
+            return priorityOrder[b.priority] - priorityOrder[a.priority];
+          case 'date':
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          default:
+            return 0;
+        }
+      });
+    };
+
+    return {
+      todo: sortTasks(allTasks.todo),
+      'in-progress': sortTasks(allTasks['in-progress']),
+      done: sortTasks(allTasks.done),
+    };
+  }, [filteredTasks, sortBy, isDragging]);
+
+  const handleDragEnd = (result) => {
+    setIsDragging(false);
+    const { destination, source, draggableId } = result;
+
+    // No destination means drag was cancelled
+    if (!destination) return;
+
+    // No change in position
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    const task = tasks.find(t => t.id === draggableId);
+    if (!task) return;
+
+    let newTasks = [...tasks];
+
+    if (source.droppableId === destination.droppableId) {
+      // Reordering within the same column
+      const columnTasks = newTasks.filter(t => t.status === source.droppableId);
+      const [removed] = columnTasks.splice(source.index, 1);
+      columnTasks.splice(destination.index, 0, removed);
+      // Replace tasks in the original list
+      newTasks = newTasks.map(t => (t.status === source.droppableId ? columnTasks.shift() : t));
+    } else {
+      // Moving to a different column
+      task.status = destination.droppableId;
+      newTasks = newTasks.filter(t => t.id !== draggableId);
+      const destColumnTasks = newTasks.filter(t => t.status === destination.droppableId);
+      destColumnTasks.splice(destination.index, 0, task);
+      // Rebuild the tasks array
+      newTasks = [];
+      ['todo', 'in-progress', 'done'].forEach(status => {
+        if (status === destination.droppableId) {
+          newTasks = newTasks.concat(destColumnTasks);
+        } else {
+          newTasks = newTasks.concat(tasks.filter(t => t.status === status && t.id !== draggableId));
+        }
+      });
     }
-    return newTasks;
-  });
-};
+
+    setTasks(newTasks);
+  };
 
   const handleAddTask = (taskData) => {
     setTasks(prevTasks => [...prevTasks, taskData]);
@@ -86,9 +113,7 @@ const handleDragEnd = (result) => {
 
   const handleUpdateTask = (updatedTask) => {
     setTasks(prevTasks =>
-      prevTasks.map(task =>
-        task.id === updatedTask.id ? updatedTask : task
-      )
+      prevTasks.map(task => (task.id === updatedTask.id ? updatedTask : task))
     );
     setEditingTask(null);
   };
@@ -143,11 +168,32 @@ const handleDragEnd = (result) => {
         <div className="flex flex-col xl:flex-row gap-6">
           {/* Task Columns */}
           <div className="flex-1">
-            <DragDropContext onDragEnd={handleDragEnd}>
+            <DragDropContext
+              onBeforeDragStart={() => setIsDragging(true)}
+              onDragEnd={handleDragEnd}
+            >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <TaskColumn title="To Do" tasks={tasksByStatus.todo} columnId="todo" onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
-                <TaskColumn title="In Progress" tasks={tasksByStatus['in-progress']} columnId="in-progress" onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
-                <TaskColumn title="Done" tasks={tasksByStatus.done} columnId="done" onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
+                <TaskColumn
+                  title="To Do"
+                  tasks={tasksByStatus.todo}
+                  columnId="todo"
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                />
+                <TaskColumn
+                  title="In Progress"
+                  tasks={tasksByStatus['in-progress']}
+                  columnId="in-progress"
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                />
+                <TaskColumn
+                  title="Done"
+                  tasks={tasksByStatus.done}
+                  columnId="done"
+                  onEditTask={handleEditTask}
+                  onDeleteTask={handleDeleteTask}
+                />
               </div>
             </DragDropContext>
           </div>
