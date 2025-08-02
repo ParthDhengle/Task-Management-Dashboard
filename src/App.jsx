@@ -10,7 +10,8 @@ import {
   addTask, 
   updateTask, 
   deleteTask as deleteTaskFromFirebase,
-  initializeSampleData
+  initializeSampleData,
+  clearAllTasks
 } from './services/taskService';
 
 function App() {
@@ -97,11 +98,16 @@ function App() {
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
     const task = tasks.find(t => t.id === draggableId);
-    if (!task) return;
+    if (!task) {
+      console.error('Task not found:', draggableId);
+      setError('Task not found. Please refresh the page.');
+      return;
+    }
 
     try {
       // Update task status in Firebase if moved to different column
       if (source.droppableId !== destination.droppableId) {
+        console.log('Updating task status:', draggableId, 'to', destination.droppableId);
         await updateTask(draggableId, { status: destination.droppableId });
       }
       
@@ -110,7 +116,12 @@ function App() {
       
     } catch (error) {
       console.error('Error updating task:', error);
-      setError('Failed to update task. Please try again.');
+      if (error.code === 'not-found') {
+        setError('Task not found in database. It may have been deleted. Refreshing...');
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        setError('Failed to update task. Please try again.');
+      }
     }
   };
 
@@ -174,6 +185,19 @@ function App() {
     }
   };
 
+  // Clear all tasks
+  const handleClearAllTasks = async () => {
+    if (window.confirm('Are you sure you want to delete ALL tasks? This cannot be undone.')) {
+      try {
+        await clearAllTasks();
+        alert('All tasks cleared successfully!');
+      } catch (error) {
+        console.error('Error clearing tasks:', error);
+        alert('Failed to clear tasks. Check console for details.');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -219,15 +243,19 @@ function App() {
               <Plus className="mr-2" size={20} />
               Add Task
             </button>
-            {/* Uncomment this button to initialize sample data */}
-            {/* 
+            {/* Database Management Buttons */}
             <button
               onClick={handleInitializeSampleData}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
             >
               Init Sample Data
             </button>
-            */}
+            <button
+              onClick={handleClearAllTasks}
+              className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+            >
+              Clear All Tasks
+            </button>
           </div>
         </div>
 

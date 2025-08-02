@@ -91,6 +91,19 @@ export const deleteTask = async (taskId) => {
   }
 };
 
+// Clear all existing tasks
+export const clearAllTasks = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, TASKS_COLLECTION));
+    const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+    console.log('All tasks cleared successfully');
+  } catch (error) {
+    console.error('Error clearing tasks:', error);
+    throw error;
+  }
+};
+
 // Initialize sample data (run this once to populate your Firestore)
 export const initializeSampleData = async () => {
   const sampleTasks = [
@@ -98,52 +111,56 @@ export const initializeSampleData = async () => {
       title: 'Design Homepage Layout',
       description: 'Create wireframes and mockups for the new homepage design with modern UI elements',
       status: 'todo',
-      priority: 'high',
-      createdAt: '2024-01-15'
+      priority: 'high'
     },
     {
       title: 'Setup Database Schema',
       description: 'Design and implement the database structure for user management and task storage',
       status: 'todo',
-      priority: 'medium',
-      createdAt: '2024-01-14'
+      priority: 'medium'
     },
     {
       title: 'Implement Authentication',
       description: 'Add user login and registration functionality with JWT tokens',
       status: 'in-progress',
-      priority: 'high',
-      createdAt: '2024-01-13'
+      priority: 'high'
     },
     {
       title: 'Write API Documentation',
       description: 'Document all REST API endpoints with examples and response formats',
       status: 'in-progress',
-      priority: 'low',
-      createdAt: '2024-01-12'
+      priority: 'low'
     },
     {
       title: 'Setup CI/CD Pipeline',
       description: 'Configure automated testing and deployment pipeline using GitHub Actions',
       status: 'done',
-      priority: 'medium',
-      createdAt: '2024-01-10'
+      priority: 'medium'
     },
     {
       title: 'Code Review Process',
       description: 'Establish code review guidelines and implement pull request templates',
       status: 'done',
-      priority: 'low',
-      createdAt: '2024-01-08'
+      priority: 'low'
     }
   ];
 
   try {
-    for (const task of sampleTasks) {
-      await addDoc(collection(db, TASKS_COLLECTION), task);
-    }
+    // Clear existing tasks first
+    await clearAllTasks();
+    
+    // Add new tasks with serverTimestamp
+    const addPromises = sampleTasks.map(task => 
+      addDoc(collection(db, TASKS_COLLECTION), {
+        ...task,
+        createdAt: serverTimestamp()
+      })
+    );
+    
+    await Promise.all(addPromises);
     console.log('Sample data initialized successfully');
   } catch (error) {
     console.error('Error initializing sample data:', error);
+    throw error;
   }
 };
