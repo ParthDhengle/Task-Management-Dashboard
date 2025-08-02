@@ -31,12 +31,15 @@ const TaskModal = ({ isOpen, onClose, onSubmit, task = null }) => {
     e.preventDefault();
     if (!formData.title.trim()) return;
     
-    onSubmit({
+    // FIXED: Don't generate IDs for new tasks - let Firestore handle it
+    // Only include ID when editing existing tasks
+    const taskData = {
       ...formData,
-      id: task?.id || Date.now().toString(),
-      createdAt: task?.createdAt || new Date().toISOString().split('T')[0]
-    });
+      ...(task && { id: task.id }), // Only include ID if editing existing task
+      ...(task && { createdAt: task.createdAt }) // Preserve original creation date
+    };
     
+    onSubmit(taskData);
     onClose();
   };
 

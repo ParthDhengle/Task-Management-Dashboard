@@ -87,80 +87,97 @@ function App() {
     };
   }, [filteredTasks, sortBy, isDragging]);
 
-  const handleDragEnd = async (result) => {
-    setIsDragging(false);
-    const { destination, source, draggableId } = result;
+  
+const handleDragEnd = async (result) => {
+  setIsDragging(false);
+  const { destination, source, draggableId } = result;
 
-    // No destination means drag was cancelled
-    if (!destination) return;
+  // No destination means drag was cancelled
+  if (!destination) return;
 
-    // No change in position
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+  // No change in position
+  if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    const task = tasks.find(t => t.id === draggableId);
-    if (!task) {
-      console.error('Task not found:', draggableId);
-      setError('Task not found. Please refresh the page.');
-      return;
+  const task = tasks.find(t => t.id === draggableId);
+  if (!task) {
+    console.error('Task not found:', draggableId);
+    setError('Task not found. Please refresh the page.');
+    return;
+  }
+
+  try {
+    // Update task status in Firebase if moved to different column
+    if (source.droppableId !== destination.droppableId) {
+      console.log('Updating task status:', draggableId, 'to', destination.droppableId);
+      await updateTask(draggableId, { status: destination.droppableId });
+      console.log('Task updated successfully');
     }
-
-    try {
-      // Update task status in Firebase if moved to different column
-      if (source.droppableId !== destination.droppableId) {
-        console.log('Updating task status:', draggableId, 'to', destination.droppableId);
-        await updateTask(draggableId, { status: destination.droppableId });
-      }
-      
-      // Note: For reordering within the same column, you might want to add
-      // an 'order' field to your tasks and update it accordingly
-      
-    } catch (error) {
-      console.error('Error updating task:', error);
-      if (error.code === 'not-found') {
-        setError('Task not found in database. It may have been deleted. Refreshing...');
-        setTimeout(() => window.location.reload(), 2000);
-      } else {
-        setError('Failed to update task. Please try again.');
-      }
+  } catch (error) {
+    console.error('Error updating task:', error);
+    // More specific error handling
+    if (error.code === 'not-found' || error.message.includes('No document to update')) {
+      setError(`Task with ID ${draggableId} not found in database. The task may have been deleted. Refreshing...`);
+      setTimeout(() => window.location.reload(), 2000);
+    } else {
+      setError('Failed to update task. Please try again.');
     }
-  };
+  }
+};
 
-  const handleAddTask = async (taskData) => {
-    try {
-      await addTask(taskData);
-    } catch (error) {
-      console.error('Error adding task:', error);
-      setError('Failed to add task. Please try again.');
-    }
-  };
+const handleAddTask = async (taskData) => {
+  try {
+    // Remove any ID from taskData when adding new tasks - let Firestore generate it
+    const { id, ...cleanTaskData } = taskData;
+    await addTask(cleanTaskData);
+    console.log('Task added successfully');
+  } catch (error) {
+    console.error('Error adding task:', error);
+    setError('Failed to add task. Please try again.');
+  }
+};
 
   const handleEditTask = (task) => {
     setEditingTask(task);
     setIsModalOpen(true);
   };
 
-  const handleUpdateTask = async (updatedTask) => {
-    try {
-      const { id, ...taskData } = updatedTask;
-      await updateTask(id, taskData);
-      setEditingTask(null);
-    } catch (error) {
-      console.error('Error updating task:', error);
+const handleUpdateTask = async (updatedTask) => {
+  try {
+    if (!updatedTask.id) {
+      console.error('No ID provided for task update');
+      setError('Task ID missing. Cannot update task.');
+      return;
+    }
+    
+    const { id, ...taskData } = updatedTask;
+    await updateTask(id, taskData);
+    setEditingTask(null);
+    console.log('Task updated successfully');
+  } catch (error) {
+    console.error('Error updating task:', error);
+    if (error.code === 'not-found' || error.message.includes('No document to update')) {
+      setError(`Task not found in database. It may have been deleted.`);
+    } else {
       setError('Failed to update task. Please try again.');
     }
-  };
+  }
+};
 
-  const handleDeleteTask = async (taskId) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      try {
-        await deleteTaskFromFirebase(taskId);
-      } catch (error) {
-        console.error('Error deleting task:', error);
+const handleDeleteTask = async (taskId) => {
+  if (window.confirm('Are you sure you want to delete this task?')) {
+    try {
+      await deleteTaskFromFirebase(taskId);
+      console.log('Task deleted successfully');
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      if (error.code === 'not-found' || error.message.includes('No document to update')) {
+        setError('Task not found in database. It may have already been deleted.');
+      } else {
         setError('Failed to delete task. Please try again.');
       }
     }
-  };
-
+  }
+};
   const handleModalSubmit = (taskData) => {
     if (editingTask) {
       handleUpdateTask(taskData);
