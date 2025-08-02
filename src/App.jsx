@@ -10,7 +10,6 @@ import {
   addTask, 
   updateTask, 
   deleteTask as deleteTaskFromFirebase,
-  initializeSampleData,
   clearAllTasks
 } from './services/taskService';
 
@@ -191,17 +190,7 @@ const handleDeleteTask = async (taskId) => {
     setEditingTask(null);
   };
 
-  // Initialize sample data (uncomment and run once to populate Firebase)
-  const handleInitializeSampleData = async () => {
-    try {
-      await initializeSampleData();
-      alert('Sample data initialized successfully!');
-    } catch (error) {
-      console.error('Error initializing sample data:', error);
-      alert('Failed to initialize sample data. Check console for details.');
-    }
-  };
-
+ 
   // Clear all tasks
   const handleClearAllTasks = async () => {
     if (window.confirm('Are you sure you want to delete ALL tasks? This cannot be undone.')) {
@@ -261,12 +250,7 @@ const handleDeleteTask = async (taskId) => {
               Add Task
             </button>
             {/* Database Management Buttons */}
-            <button
-              onClick={handleInitializeSampleData}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
-            >
-              Init Sample Data
-            </button>
+            
             <button
               onClick={handleClearAllTasks}
               className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm"

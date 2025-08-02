@@ -31,7 +31,7 @@ const Sidebar = ({ tasks }) => {
             <User className="text-white" size={24} />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">John Doe</h3>
+            <h3 className="font-semibold text-gray-900">Manager Name</h3>
             <p className="text-sm text-gray-600">Project Manager</p>
           </div>
         </div>
@@ -113,7 +113,7 @@ const Sidebar = ({ tasks }) => {
       </div>
 
       {/* Quick Actions */}
-      <div className="sidebar-card">
+      {/* <div className="sidebar-card">
         <h3 className="font-semibold text-gray-900 flex items-center mb-4">
           <Calendar className="mr-2" size={18} />
           Quick Actions
@@ -130,7 +130,7 @@ const Sidebar = ({ tasks }) => {
             Team Settings
           </button>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
