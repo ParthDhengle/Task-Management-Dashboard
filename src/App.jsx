@@ -53,32 +53,19 @@ function App() {
     };
   }, [filteredAndSortedTasks]);
 
-  const handleDragEnd = (result) => {
-    const { destination, source, draggableId } = result;
+const handleDragEnd = (result) => {
+  const { destination, source, draggableId } = result;
+  if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) return;
 
-    if (!destination) return;
-
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    ) {
-      return;
+  setTasks(prevTasks => {
+    const newTasks = [...prevTasks];
+    const taskIndex = newTasks.findIndex(task => task.id === draggableId);
+    if (taskIndex !== -1) {
+      newTasks[taskIndex].status = destination.droppableId;
     }
-
-    setTasks(prevTasks => {
-      const newTasks = [...prevTasks];
-      const taskIndex = newTasks.findIndex(task => task.id === draggableId);
-      
-      if (taskIndex !== -1) {
-        newTasks[taskIndex] = {
-          ...newTasks[taskIndex],
-          status: destination.droppableId
-        };
-      }
-      
-      return newTasks;
-    });
-  };
+    return newTasks;
+  });
+};
 
   const handleAddTask = (taskData) => {
     setTasks(prevTasks => [...prevTasks, taskData]);
@@ -150,27 +137,9 @@ function App() {
           <div className="flex-1">
             <DragDropContext onDragEnd={handleDragEnd}>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <TaskColumn
-                  title="To Do"
-                  tasks={tasksByStatus.todo}
-                  columnId="todo"
-                  onEditTask={handleEditTask}
-                  onDeleteTask={handleDeleteTask}
-                />
-                <TaskColumn
-                  title="In Progress"
-                  tasks={tasksByStatus['in-progress']}
-                  columnId="in-progress"
-                  onEditTask={handleEditTask}
-                  onDeleteTask={handleDeleteTask}
-                />
-                <TaskColumn
-                  title="Done"
-                  tasks={tasksByStatus.done}
-                  columnId="done"
-                  onEditTask={handleEditTask}
-                  onDeleteTask={handleDeleteTask}
-                />
+                <TaskColumn title="To Do" tasks={tasksByStatus.todo} columnId="todo" onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
+                <TaskColumn title="In Progress" tasks={tasksByStatus['in-progress']} columnId="in-progress" onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
+                <TaskColumn title="Done" tasks={tasksByStatus.done} columnId="done" onEditTask={handleEditTask} onDeleteTask={handleDeleteTask} />
               </div>
             </DragDropContext>
           </div>

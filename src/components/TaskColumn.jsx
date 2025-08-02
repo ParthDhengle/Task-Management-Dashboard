@@ -27,22 +27,10 @@ const TaskColumn = ({ title, tasks, columnId, onEditTask, onDeleteTask }) => {
       </div>
       
       <Droppable droppableId={columnId}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`min-h-[200px] transition-colors duration-200 ${
-              snapshot.isDraggingOver ? 'bg-blue-50 rounded-lg' : ''
-            }`}
-          >
+        {(provided) => (
+          <div ref={provided.innerRef} {...provided.droppableProps} className="min-h-[200px]">
             {tasks.map((task, index) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                index={index}
-                onEdit={onEditTask}
-                onDelete={onDeleteTask}
-              />
+              <TaskCard key={task.id} task={task} index={index} onEdit={onEditTask} onDelete={onDeleteTask} />
             ))}
             {provided.placeholder}
           </div>
