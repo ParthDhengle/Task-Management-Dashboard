@@ -1,20 +1,46 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DragDropContext } from 'react-beautiful-dnd';
 import { Plus } from 'lucide-react';
 import TaskColumn from './components/TaskColumn';
 import TaskModal from './components/TaskModal';
 import Sidebar from './components/Sidebar';
 import SearchAndFilters from './components/SearchAndFilters';
-import { sampleTasks } from './data/sampleTasks';
+import { 
+  subscribeToTasks, 
+  addTask, 
+  updateTask, 
+  deleteTask as deleteTaskFromFirebase,
+  initializeSampleData
+} from './services/taskService';
 
 function App() {
-  const [tasks, setTasks] = useState(sampleTasks);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [sortBy, setSortBy] = useState('title');
   const [isDragging, setIsDragging] = useState(false);
+
+  // Subscribe to real-time updates from Firebase
+  useEffect(() => {
+    const unsubscribe = subscribeToTasks((newTasks) => {
+      setTasks(newTasks);
+      setLoading(false);
+    });
+
+    // Handle errors
+    const handleError = (error) => {
+      console.error('Firebase error:', error);
+      setError('Failed to load tasks. Please check your internet connection.');
+      setLoading(false);
+    };
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
 
   // Filter tasks (no sorting here)
   const filteredTasks = useMemo(() => {
@@ -60,7 +86,7 @@ function App() {
     };
   }, [filteredTasks, sortBy, isDragging]);
 
-  const handleDragEnd = (result) => {
+  const handleDragEnd = async (result) => {
     setIsDragging(false);
     const { destination, source, draggableId } = result;
 
@@ -73,37 +99,28 @@ function App() {
     const task = tasks.find(t => t.id === draggableId);
     if (!task) return;
 
-    let newTasks = [...tasks];
-
-    if (source.droppableId === destination.droppableId) {
-      // Reordering within the same column
-      const columnTasks = newTasks.filter(t => t.status === source.droppableId);
-      const [removed] = columnTasks.splice(source.index, 1);
-      columnTasks.splice(destination.index, 0, removed);
-      // Replace tasks in the original list
-      newTasks = newTasks.map(t => (t.status === source.droppableId ? columnTasks.shift() : t));
-    } else {
-      // Moving to a different column
-      task.status = destination.droppableId;
-      newTasks = newTasks.filter(t => t.id !== draggableId);
-      const destColumnTasks = newTasks.filter(t => t.status === destination.droppableId);
-      destColumnTasks.splice(destination.index, 0, task);
-      // Rebuild the tasks array
-      newTasks = [];
-      ['todo', 'in-progress', 'done'].forEach(status => {
-        if (status === destination.droppableId) {
-          newTasks = newTasks.concat(destColumnTasks);
-        } else {
-          newTasks = newTasks.concat(tasks.filter(t => t.status === status && t.id !== draggableId));
-        }
-      });
+    try {
+      // Update task status in Firebase if moved to different column
+      if (source.droppableId !== destination.droppableId) {
+        await updateTask(draggableId, { status: destination.droppableId });
+      }
+      
+      // Note: For reordering within the same column, you might want to add
+      // an 'order' field to your tasks and update it accordingly
+      
+    } catch (error) {
+      console.error('Error updating task:', error);
+      setError('Failed to update task. Please try again.');
     }
-
-    setTasks(newTasks);
   };
 
-  const handleAddTask = (taskData) => {
-    setTasks(prevTasks => [...prevTasks, taskData]);
+  const handleAddTask = async (taskData) => {
+    try {
+      await addTask(taskData);
+    } catch (error) {
+      console.error('Error adding task:', error);
+      setError('Failed to add task. Please try again.');
+    }
   };
 
   const handleEditTask = (task) => {
@@ -111,16 +128,25 @@ function App() {
     setIsModalOpen(true);
   };
 
-  const handleUpdateTask = (updatedTask) => {
-    setTasks(prevTasks =>
-      prevTasks.map(task => (task.id === updatedTask.id ? updatedTask : task))
-    );
-    setEditingTask(null);
+  const handleUpdateTask = async (updatedTask) => {
+    try {
+      const { id, ...taskData } = updatedTask;
+      await updateTask(id, taskData);
+      setEditingTask(null);
+    } catch (error) {
+      console.error('Error updating task:', error);
+      setError('Failed to update task. Please try again.');
+    }
   };
 
-  const handleDeleteTask = (taskId) => {
+  const handleDeleteTask = async (taskId) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
-      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskId));
+      try {
+        await deleteTaskFromFirebase(taskId);
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        setError('Failed to delete task. Please try again.');
+      }
     }
   };
 
@@ -137,6 +163,46 @@ function App() {
     setEditingTask(null);
   };
 
+  // Initialize sample data (uncomment and run once to populate Firebase)
+  const handleInitializeSampleData = async () => {
+    try {
+      await initializeSampleData();
+      alert('Sample data initialized successfully!');
+    } catch (error) {
+      console.error('Error initializing sample data:', error);
+      alert('Failed to initialize sample data. Check console for details.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading tasks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <p>{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6">
@@ -145,13 +211,24 @@ function App() {
           <h1 className="text-3xl font-bold text-gray-900 mb-4 lg:mb-0">
             Project Dashboard
           </h1>
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Plus className="mr-2" size={20} />
-            Add Task
-          </button>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <Plus className="mr-2" size={20} />
+              Add Task
+            </button>
+            {/* Uncomment this button to initialize sample data */}
+            {/* 
+            <button
+              onClick={handleInitializeSampleData}
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+            >
+              Init Sample Data
+            </button>
+            */}
+          </div>
         </div>
 
         {/* Search and Filters */}
